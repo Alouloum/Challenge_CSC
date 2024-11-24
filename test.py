@@ -29,7 +29,7 @@ def preprocess_text(text):
 
 # Charger et traiter les données d'entraînement
 train_data = []
-for filename in os.listdir("train_tweets"):
+for filename in os.listdir("challenge_data/train_tweets"):
     df = pd.read_json(os.path.join("challenge_data","train_tweets", filename), lines=True)
     train_data.append(df)
 train_df = pd.concat(train_data, ignore_index=True)
