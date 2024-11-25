@@ -6,7 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
-
+from tqdm import tqdm
+max_length = 4096
+device = torch.device("cuda")
 # Load and combine all CSV files from the directory
 print("Loading data...")
 data_dir = Path("./challenge_data/eval_tweets")
@@ -38,9 +40,10 @@ print("Preprocessing complete.")
 # Aggregate tweets by ID and EventType
 new_data = df.groupby(["ID"], as_index=False).agg({"CleanTweet": lambda x: " ".join(x)})
 
+
 # 1. Charger le modèle et le tokenizer sauvegardés
-model_path = "./fine_tuned_model"
-model = AutoModelForSequenceClassification.from_pretrained(model_path)
+model_path = "./results/checkpoint-2120"
+model = AutoModelForSequenceClassification.from_pretrained(model_path).to(device)
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 # Mettre le modèle en mode évaluation
@@ -48,17 +51,27 @@ model.eval()
 
 # 3. Prétraiter les tweets (tokenization)
 tweets = new_data["CleanTweet"].tolist()
-encodings = tokenizer(tweets, truncation=True, padding=True, max_length=512, return_tensors="pt")
+#encodings = tokenizer(tweets, truncation=True, padding=True, max_length=max_length, return_tensors="pt")#.to(device)
 
 # 4. Effectuer les prédictions
-with torch.no_grad():
-    outputs = model(**encodings)
-    predictions = torch.argmax(outputs.logits, dim=1)  # Prédictions des classes
 
+print("Predicting...")
+predictions = []
+for tweet in tqdm(tweets, desc="Processing Tweets"):
+    encodings = tokenizer(tweet, truncation=True, padding=True, max_length=max_length, return_tensors="pt").to(device)
+    with torch.no_grad():
+        outputs = model(**encodings)
+        prediction = torch.argmax(outputs.logits, dim=1).item()  # Prédictions des classes
+    predictions.append(prediction)
+# with torch.no_grad():
+#     outputs = model(**encodings)
+#     predictions = torch.argmax(outputs.logits, dim=1)  # Prédictions des classes
+
+print("Predictions complete.")
 # Ajouter les prédictions dans le dataframe
-new_data["EventType"] = predictions.numpy()
+new_data["EventType"] = predictions
 
 # 5. Sauvegarder le dataframe sous forme CSV
-output_csv_path = "predictions.csv"
+output_csv_path = "all_predictions.csv"
 new_data[["ID", "EventType"]].to_csv(output_csv_path, index=False)
 print(f"Prédictions sauvegardées dans {output_csv_path}")

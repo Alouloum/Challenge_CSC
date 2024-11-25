@@ -11,3 +11,6 @@ notebooks/Bert_lstm.ipynb
 notebooks/building_dataset.ipynb
 notebooks/building_dataset.ipynb
 tmux-client-2637283.log
+fine_tuned_model
+fine_tuned_model_long
+fine_tuned_model_sum
