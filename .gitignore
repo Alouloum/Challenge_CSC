@@ -3,3 +3,11 @@ data
 challenge_env
 models
 .DS_Store
+fine_tuned_model
+results
+logs
+notebooks/bert_regre.ipynb
+notebooks/Bert_lstm.ipynb
+notebooks/building_dataset.ipynb
+notebooks/building_dataset.ipynb
+tmux-client-2637283.log
