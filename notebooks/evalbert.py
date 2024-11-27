@@ -7,6 +7,8 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 from transformers import LongformerForSequenceClassification, LongformerTokenizer
+from tqdm import tqdm
+import nltk
 from nltk.corpus import stopwords
 
 max_length = 4096
@@ -26,6 +28,10 @@ dataframes = [pd.read_csv(file) for file in data_files]
 df = pd.concat(dataframes, ignore_index=True)
 print(f"Loaded {len(df)} rows from {len(data_files)} files.")
 
+print("Downloading NLP models...")
+nltk.download('stopwords')
+print("Stopwords downloaded.")
+
 # Preprocess tweets
 def preprocess_text(text):
     """Clean and preprocess text data."""
@@ -40,13 +46,14 @@ def preprocess_text(text):
 
     text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
     text = text.split()
-    stopwords = set(stopwords.words('english'))
+    stop_words = set(stopwords.words('english'))
 
-    words = [word for word in words if (word not in stopwords) or (word != "rt")]
-    return text
+    words = [word for word in text if (word not in stop_words) or (word != "rt")]
+    return ' '.join(words)
 
 print("Preprocessing tweets...")
-df["CleanTweet"] = df["Tweet"].apply(preprocess_text)
+tqdm.pandas()
+df["CleanTweet"] = df["Tweet"].progress_apply(preprocess_text)
 
 print("Preprocessing complete.")
 
