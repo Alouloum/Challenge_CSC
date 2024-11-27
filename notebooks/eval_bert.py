@@ -7,42 +7,57 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 from tqdm import tqdm
+
+
+
 max_length = 4096
 device = torch.device("cuda")
+save = True
+load = False
+model_path = "./results/checkpoint-2120"
+output_csv_path = "all_predictions.csv"
+
 # Load and combine all CSV files from the directory
-print("Loading data...")
-data_dir = Path("./challenge_data/eval_tweets")
-data_files = list(data_dir.glob("*.csv"))
+if not(load):
+    print("Loading data...")
+    data_dir = Path("./challenge_data/eval_tweets")
+    data_files = list(data_dir.glob("*.csv"))
 
-if not data_files:
-    raise FileNotFoundError(f"No CSV files found in {data_dir}")
+    if not data_files:
+        raise FileNotFoundError(f"No CSV files found in {data_dir}")
 
-dataframes = [pd.read_csv(file) for file in data_files]
-df = pd.concat(dataframes, ignore_index=True)
-print(f"Loaded {len(df)} rows from {len(data_files)} files.")
+    dataframes = [pd.read_csv(file) for file in data_files]
+    df = pd.concat(dataframes, ignore_index=True)
+    print(f"Loaded {len(df)} rows from {len(data_files)} files.")
 
-# Preprocess tweets
-def preprocess_text(text):
-    """Clean and preprocess text data."""
-    text = text.lower()
-    text = re.sub(r"#\w+", "", text)  # Remove hashtags
-    text = re.sub(r"http\S+", "", text)  # Remove URLs
-    text = re.sub(r"@\w+", "", text)  # Remove mentions
-    text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
-    text = " ".join([word for word in text.split() if word != "rt"])  # Remove "RT"
-    return text
+    # Preprocess tweets
+    def preprocess_text(text):
+        """Clean and preprocess text data."""
+        text = text.lower()
+        text = re.sub(r"#\w+", "", text)  # Remove hashtags
+        text = re.sub(r"http\S+", "", text)  # Remove URLs
+        text = re.sub(r"@\w+", "", text)  # Remove mentions
+        text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
+        text = " ".join([word for word in text.split() if word != "rt"])  # Remove "RT"
+        return text
 
-print("Preprocessing tweets...")
-df["CleanTweet"] = df["Tweet"].apply(preprocess_text)
+    print("Preprocessing tweets...")
+    df["CleanTweet"] = df["Tweet"].apply(preprocess_text)
 
-print("Preprocessing complete.")
+    print("Preprocessing complete.")
+    # Aggregate tweets by ID and EventType
+    new_data = df.groupby(["ID"], as_index=False).agg({"CleanTweet": lambda x: " ".join(x)})
 
-# Aggregate tweets by ID and EventType
-new_data = df.groupby(["ID"], as_index=False).agg({"CleanTweet": lambda x: " ".join(x)})
 
+if save:
+    new_data.to_csv("./data/preprocessed.csv", index=False)
+    print("Preprocessed data saved in preprocessed.csv")
+if load:
+    new_data = pd.read_csv("./data/preprocessed.csv")
+    print("Data loaded from preprocessed.csv")
 
 # 1. Charger le modèle et le tokenizer sauvegardés
-model_path = "./results/checkpoint-2120"
+
 model = AutoModelForSequenceClassification.from_pretrained(model_path).to(device)
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
@@ -72,6 +87,6 @@ print("Predictions complete.")
 new_data["EventType"] = predictions
 
 # 5. Sauvegarder le dataframe sous forme CSV
-output_csv_path = "all_predictions.csv"
+
 new_data[["ID", "EventType"]].to_csv(output_csv_path, index=False)
 print(f"Prédictions sauvegardées dans {output_csv_path}")
