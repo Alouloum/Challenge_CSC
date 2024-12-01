@@ -14,7 +14,7 @@ max_length = 4096
 device = torch.device("cuda")
 save = True
 load = False
-model_path = "./results/checkpoint-2120"
+model_path = "./results/model_stropwords/checkpoint-1000"
 output_csv_path = "all_predictions.csv"
 
 # Load and combine all CSV files from the directory
