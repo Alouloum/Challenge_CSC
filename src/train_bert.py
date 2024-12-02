@@ -11,8 +11,8 @@ from nltk.corpus import stopwords
 
 max_length = 4096
 model_path  = "./fine_tuned_model"
-log_dir = "./logs/model_stropwords"
-results_dir = "./results/model_stropwords"
+log_dir = "./logs/model_bert_stropwords"
+results_dir = "./results/model_bert_stropwords"
 
 # Load and combine all CSV files from the directory
 print("Loading data...")

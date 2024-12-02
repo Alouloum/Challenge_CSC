@@ -14,11 +14,16 @@ import numpy as np
 import torch.nn.utils.rnn as rnn_utils
 from torch.utils.data import DataLoader
 from transformers import Trainer, TrainingArguments
+import nltk
+from nltk.stem import WordNetLemmatizer
+
+nltk.download('wordnet')
+print("Wordnet downloaded.")
+# Load GloVe model with Gensim's API
 
 
-
-name = ''
-lstm_hidden_dim = 48
+name = 'with_lemmatize'
+lstm_hidden_dim = 32
 bidirectional = True
 
 log_dir = "./logs/modeln_" + ("bilstm" if bidirectional else "lstm") + str(lstm_hidden_dim) + name
@@ -60,11 +65,13 @@ if not debug and __name__ == "__main__":
         text = re.sub(r"\brt\b", "", text)    # Remove retweet indicator
         text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
         text = re.sub(r"\s+", " ", text)      # Remove multiple spaces
-        text = text.strip()                   # Remove leading/trailing spaces
+        text = text.strip()
+        lemmatizer = WordNetLemmatizer()                 # Remove leading/trailing spaces
         tokens = text.split()   
         # Calcul de l'embedding
         embeddings = []
         for token in tokens:
+            token = lemmatizer.lemmatize(token)
             if token in embeddings_model:
                 embeddings.append(embeddings_model[token])
         if embeddings == []:
@@ -288,7 +295,7 @@ training_args = TrainingArguments(
 
     save_strategy='epoch',
 
-    num_train_epochs=50,              # Nombre d'époques
+    num_train_epochs=20,              # Nombre d'époques
     weight_decay=0.01,               # Régularisation L2
     learning_rate=5e-4,               # Taux d'apprentissage
     save_total_limit=2,   
