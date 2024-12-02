@@ -1,3 +1,12 @@
+import torch
+import torch.nn as nn
+
+import sys
+import os
+
+sys.path.append(os.path.dirname(__file__))
+from mamba.mamba_encoder import MambaConfig, MambaEncoder
+
 from torch.utils.data import Dataset
 from transformers import AutoModel, AutoTokenizer
 import torch
@@ -17,12 +26,11 @@ from transformers import Trainer, TrainingArguments
 
 
 
-name = ''
-lstm_hidden_dim = 48
+name = 'test'
 bidirectional = True
 
-log_dir = "./logs/modeln_" + ("bilstm" if bidirectional else "lstm") + str(lstm_hidden_dim) + name
-results_dir = "./results/modeln_" + ("bilstm" if bidirectional else "lstm") +str(lstm_hidden_dim)+name
+log_dir = "./logs/model_" + ("bimamba" if bidirectional else "mamba")  + name
+results_dir = "./results/modeln_" + ("bilstm" if bidirectional else "lstm") +name
 
 MAX_TWEETS_PER_GROUP = 2000
 
@@ -31,7 +39,7 @@ max_n_words = 20   # Nombre maximum de mots par tweet
 embedding_dim = 200  # Dimension des embeddings
 num_classes = 2  # Nombre de classes pour les labels
 
-debug = False # Si True, génère des données aléatoires pour le débogage
+debug = True # Si True, génère des données aléatoires pour le débogage
 
 
 # Load and combine all CSV files from the directory
@@ -132,39 +140,23 @@ if __name__ == "__main__":
     eval_dataset = PrecomputedEmbeddingDataset(eval_texts, eval_labels)
 
 
-class TweetClassifier(nn.Module):
-    def __init__(self, embedding_dim, lstm_hidden_dim, bidirectional=bidirectional):
-        super(TweetClassifier, self).__init__()
 
+    
+class TweetMamba(nn.Module):
+    def __init__(self, depth=4, embed_dim=embedding_dim ,bidirectional = bidirectional):
+        super().__init__()
+        
+        #self.pos_embed =  PosEmbed(num_patches = self.num_patches,embed_dim=embed_dim)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         # Attention pondérée pour les mots
         self.word_attention = nn.Linear(embedding_dim, 1)
 
-        # LSTM pour les tweets
-        self.lstm = nn.LSTM(embedding_dim, lstm_hidden_dim, batch_first=True, bidirectional=bidirectional)
-
-        # Couche de classification
-        if bidirectional:
-        #     self.classifier = nn.Sequential(
-        #     nn.Linear(2 * lstm_hidden_dim, lstm_hidden_dim),
-        #     nn.ReLU(),
-        #     nn.BatchNorm1d(lstm_hidden_dim),
-        #     nn.Dropout(0.5),
-        #     nn.Linear(lstm_hidden_dim, 1)
-        # )
-            self.classifier = nn.Linear(2 * lstm_hidden_dim, 1)
-        else:
-            self.classifier = nn.Linear(lstm_hidden_dim, 1)
-        #     self.classifier = nn.Sequential(
-        #     nn.Linear(lstm_hidden_dim, lstm_hidden_dim),
-        #     nn.ReLU(),
-        #     nn.BatchNorm1d(lstm_hidden_dim),
-        #     nn.Dropout(0.5),
-        #     nn.Linear(lstm_hidden_dim, 1)
-        # )
         
-
-        # Fonction de perte
+        config  = MambaConfig(d_model = embed_dim, n_layers= depth,bidirectional=bidirectional)
+        self.mamba = MambaEncoder(config)
+        self.head = nn.Linear(embed_dim, 1)
         self.criterion = nn.BCEWithLogitsLoss()
+
 
     def attention_aggregation(self, word_embeddings):
         """
@@ -181,70 +173,46 @@ class TweetClassifier(nn.Module):
         tweet_embedding = torch.sum(attn_scores * word_embeddings, dim=0)
         return tweet_embedding
 
-    def forward(self, input_ids=None,  n_tweets=None, n_words=None,labels=None):
-        """""
-        Forward pass du modèle.
 
-        Arguments:
-        - input_ids: Tensor de dimensions (batch_size, max_n_tweets, max_n_words, embedding_dim)
-        - n_words: Tensor des nombres de mots par tweet (batch_size, max_n_tweets)
-        - n_tweets: Tensor des nombres de tweets par groupe (batch_size)
-        - labels: Tensor des labels (batch_size), optionnel
-
-        Retourne:
-        - outputs: dict contenant 'loss' (si labels est fourni) et 'logits'
-        """
-
+    def forward(self, input_ids=None,  n_tweets=None, n_words=None,labels = None):
         batch_size = input_ids.size(0)
-        tweet_embeddings = []
+        max_n_tweets = input_ids.size(1)  # Number of tweets per batch (already padded)
+        embedding_dim = input_ids.size(-1)  # Embedding dimension
+
+        # Initialize tensor for storing tweet embeddings
+        tweet_embeddings = torch.zeros(batch_size, max_n_tweets, embedding_dim, device=input_ids.device)
 
         for i in range(batch_size):
-            tweets = input_ids[i] # (max_n_tweets, max_n_words, embedding_dim)
-            tweet_embeds = []
+            tweets = input_ids[i]  # (max_n_tweets, max_n_words, embedding_dim)
+
             for j in range(n_tweets[i]):
-                word_embeddings = tweets[j][:n_words[i][j]]  # (n_words, embedding_dim)
-                # Appliquer l'attention sur les mots du tweet
-                tweet_embedding = self.attention_aggregation(word_embeddings)
-                tweet_embeds.append(tweet_embedding)
+                word_embeddings = tweets[j][:n_words[i][j]]  # Extract the actual words in the tweet
+                # Apply attention on the words of the tweet
+                tweet_embedding = self.attention_aggregation(word_embeddings)  # (embedding_dim,)
+                tweet_embeddings[i, j] = tweet_embedding  # Assign to the correct location in the tensor
 
-            tweet_embeds = torch.stack(tweet_embeds)  # (n_tweets, embedding_dim)
-            tweet_embeddings.append(tweet_embeds)
+      
+        cls_token = self.cls_token.expand(batch_size, -1, -1)
+        token_position = max_n_tweets // 2
+        x = torch.cat((x[:, :token_position, :], cls_token, x[:, token_position:, :]), dim=1)
+        x = self.mamba(x) #Mamba Encoder : (B, N+1, embed_dim) -> (B, N+1, embed_dim) 
 
-        # Padding des séquences de tweets
-        tweet_embeddings_padded = rnn_utils.pad_sequence(tweet_embeddings, batch_first=True)
-        lengths = torch.tensor([te.size(0) for te in tweet_embeddings], dtype=torch.long)
+        #  We keep only CLS token at position N//2
+        x = x[:, token_position, :]
+        x = self.head(x).squeeze(1)
+        
+        probs = torch.sigmoid(x)
 
-        # Emballer les séquences pour le LSTM
-        packed_input = rnn_utils.pack_padded_sequence(
-            tweet_embeddings_padded,
-            lengths.cpu(),
-            batch_first=True,
-            enforce_sorted=False
-        )
-
-        # Passage dans le LSTM
-        packed_output, (hidden, _) = self.lstm(packed_input)
-
-        # Utiliser le dernier état caché du LSTM
-        # hidden = hidden[-1]
-        # Concatenate the final forward and backward hidden states
-        if bidirectional:
-            hidden = torch.cat((hidden[-2], hidden[-1]), dim=1)  # (batch_size, 2 * lstm_hidden_dim)
-        else:
-            hidden = hidden[-1]
-
-        # Passage dans la couche de classification
-        logits = self.classifier(hidden).squeeze(1)  # (batch_size)
-        probs = torch.sigmoid(logits)  # Probabilités entre 0 et 1
 
         outputs = {'logits': probs}
 
         if labels is not None:
-            loss = self.criterion(logits, labels)
+            loss = self.criterion(x, labels)
             outputs['loss'] = loss
 
         return outputs
 
+    
 
 def collate_fn(batch,max_n_tweets=max_n_tweets, max_n_words=max_n_words,embedding_dim=embedding_dim):
     batch_size = len(batch)
@@ -316,7 +284,7 @@ def compute_metrics(eval_pred):
 
 
 if __name__ == "__main__":
-    model = TweetClassifier(embedding_dim=embedding_dim, lstm_hidden_dim=lstm_hidden_dim,bidirectional=bidirectional)
+    model = TweetMamba(embed_dim=embedding_dim,bidirectional=bidirectional)
     trainer = Trainer(
     model=model,
     args=training_args,
@@ -330,3 +298,6 @@ if __name__ == "__main__":
     print("Training complete.")
     trainer.save_model(results_dir+'/bestmodel')
     print("Model saved.")
+
+
+    

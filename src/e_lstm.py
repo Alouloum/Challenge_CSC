@@ -4,32 +4,34 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data import Dataset
-from transformers import AutoModel, AutoTokenizer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pathlib import Path
 import pandas as pd
 import re
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from tqdm import tqdm
 import gensim.downloader as api
 import numpy as np
-import torch.nn.utils.rnn as rnn_utils
 from torch.utils.data import DataLoader
-from transformers import Trainer, TrainingArguments
+from safetensors.torch import load_file
 
 
 from lstm import TweetClassifier
 
-
 MAX_TWEETS_PER_GROUP = 2000
-model_path = "./results/model_stropwords/checkpoint-1000"
-output_csv_path = "lstm_pred.csv"
+model_path = "results/modeln_bilstm48/checkpoint-1605/model.safetensors"
+weights = load_file(model_path)
 
 
-lstm_hidden_dim = 64
+lstm_hidden_dim = 48
+bidirectional = True
+
+output_csv_path = "lstm" + str(lstm_hidden_dim) + "_bilstm" + str(bidirectional) + ".csv"
+
+
+
+
 max_n_tweets = MAX_TWEETS_PER_GROUP  # Nombre maximum de tweets par groupe
 max_n_words = 20   # Nombre maximum de mots par tweet
 embedding_dim = 200  # Dimension des embeddings
@@ -43,6 +45,7 @@ print("model loaded.")
 print("Loading data...")
 data_dir = Path("./challenge_data/eval_tweets")
 data_files = list(data_dir.glob("*.csv"))
+
 
 if not data_files:
     raise FileNotFoundError(f"No CSV files found in {data_dir}")
@@ -123,7 +126,7 @@ def collate_fn(batch,max_n_tweets=max_n_tweets, max_n_words=max_n_words,embeddin
     }
 
 
-def evaluate_model(model, eval_dataset, collate_fn, batch_size=16, device="cuda" if torch.cuda.is_available() else "cpu"):
+def evaluate_model(model, eval_dataset, collate_fn, batch_size=1, device="cpu"):
     model.to(device)
     model.eval()
 
@@ -149,14 +152,17 @@ def evaluate_model(model, eval_dataset, collate_fn, batch_size=16, device="cuda"
     return results
 
 # Charger le modèle entraîné (assurez-vous que le modèle est sauvegardé correctement)
-trained_model = TweetClassifier(embedding_dim=embedding_dim, lstm_hidden_dim=lstm_hidden_dim,bidirectional=False)
-trained_model.load_state_dict(torch.load("path_to_trained_model.pth"))
+print("Chargement du modèle...")
+model = TweetClassifier(embedding_dim=embedding_dim, lstm_hidden_dim=lstm_hidden_dim,bidirectional=bidirectional)
+model.load_state_dict(weights)
+print("Modèle chargé.")
 
 # Évaluer le modèle
-eval_results = evaluate_model(trained_model, eval_dataset, collate_fn)
+eval_results = evaluate_model(model, eval_dataset, collate_fn)
 
 data["EventType"] = eval_results
 
+new_data = data[["ID", "EventType"]]
 # Sauvegarder les résultats sous forme de fichier CSV
-data.to_csv(output_csv_path, index=False)
+new_data.to_csv(output_csv_path, index=False)
 print("Results saved to evaluation_results.csv")
