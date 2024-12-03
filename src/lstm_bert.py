@@ -21,7 +21,7 @@ from transformers import AutoTokenizer, AutoModel
 
 # Load GloVe model with Gensim's API
 print("Loading GloVe embeddings...")
-model_name = "huawei-noah/TinyBERT_General_4L_312D"  # Pretrained BERT for tweets
+model_name = "cardiffnlp/twitter-roberta-base"  # Pretrained RoBERTa for tweets
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 bert_model = AutoModel.from_pretrained(model_name).to(device)
@@ -29,12 +29,12 @@ embedding_dim = bert_model.config.hidden_size  # Get the embedding dimension
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Loaded embeddings of dimension {embedding_dim}.")
 
-name = 'bert'
+name = '_robbertatweets'
 lstm_hidden_dim = 32
 bidirectional = True
 
-log_dir = "./logs/modeln_" + ("bilstm" if bidirectional else "lstm") + str(lstm_hidden_dim) + name
-results_dir = "./results/modeln_" + ("bilstm" if bidirectional else "lstm") +str(lstm_hidden_dim)+name
+log_dir = "./logs/model_" + ("bilstm" if bidirectional else "lstm") + str(lstm_hidden_dim) + name
+results_dir = "./results/model_" + ("bilstm" if bidirectional else "lstm") +str(lstm_hidden_dim)+name
 
 MAX_TWEETS_PER_GROUP = 2000
 

@@ -17,14 +17,20 @@ from torch.utils.data import DataLoader
 from safetensors.torch import load_file
 
 
+import nltk
+from nltk.stem import WordNetLemmatizer
+nltk.download('wordnet')
+print("Wordnet downloaded.")
+
+
 from lstm import TweetClassifier
 
 MAX_TWEETS_PER_GROUP = 2000
-model_path = "results/modeln_bilstm48/checkpoint-1605/model.safetensors"
+model_path = "results/modeln_bilstm32with_lemmatize/checkpoint-1926/model.safetensors"
 weights = load_file(model_path)
 
 
-lstm_hidden_dim = 48
+lstm_hidden_dim = 32
 bidirectional = True
 
 output_csv_path = "lstm" + str(lstm_hidden_dim) + "_bilstm" + str(bidirectional) + ".csv"
@@ -56,25 +62,26 @@ print(f"Loaded {len(df)} rows from {len(data_files)} files.")
 
 # Preprocess tweets
 def preprocess_text(text):
-    """Clean and preprocess text data."""
-    text = text.lower()
-    text = re.sub(r"#\w+", "", text)      # Remove hashtags
-    text = re.sub(r"http\S+", "", text)   # Remove URLs
-    text = re.sub(r"@\w+", "", text)      # Remove mentions
-    text = re.sub(r"\brt\b", "", text)    # Remove retweet indicator
-    text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
-    text = re.sub(r"\s+", " ", text)      # Remove multiple spaces
-    text = text.strip()                   # Remove leading/trailing spaces
-    tokens = text.split()   
-    # Calcul de l'embedding
-    embeddings = []
-    for token in tokens:
-        if token in embeddings_model:
-            embeddings.append(embeddings_model[token])
-    if embeddings == []:
-        embeddings = [np.zeros(embedding_dim)]
-    return embeddings  # Retourne l'embedding du tweet              # Tokenize by splitting on spaces
-
+        """Clean and preprocess text data."""
+        text = text.lower()
+        text = re.sub(r"#\w+", "", text)      # Remove hashtags
+        text = re.sub(r"http\S+", "", text)   # Remove URLs
+        text = re.sub(r"@\w+", "", text)      # Remove mentions
+        text = re.sub(r"\brt\b", "", text)    # Remove retweet indicator
+        text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
+        text = re.sub(r"\s+", " ", text)      # Remove multiple spaces
+        text = text.strip()
+        lemmatizer = WordNetLemmatizer()                 # Remove leading/trailing spaces
+        tokens = text.split()   
+        # Calcul de l'embedding
+        embeddings = []
+        for token in tokens:
+            token = lemmatizer.lemmatize(token)
+            if token in embeddings_model:
+                embeddings.append(embeddings_model[token])
+        if embeddings == []:
+            embeddings = [np.zeros(embedding_dim)]
+        return embeddings  # R
 print("Preprocessing tweets...")
 tqdm.pandas()
 df["CleanTweet"] = df["Tweet"].progress_apply(preprocess_text)

@@ -8,17 +8,23 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 from transformers import LongformerForSequenceClassification, LongformerTokenizer
 
-
 from tqdm import tqdm
 
 from nltk.stem import WordNetLemmatizer
 lemmatizer = WordNetLemmatizer()
 from nltk.corpus import stopwords
 
-max_length = 4096
+
+max_length = 512
+
+group_size = 50
 model_path  = "./fine_tuned_model"
-log_dir = "./logs/model_bert_with_stopwords_lemmatizer"
-results_dir = "./results/model_bert_stropwords_with_stopwords_lemmatizer"
+log_dir = "./logs/model_bert_avg_group_size_"+str(group_size)+"max_length_"+str(max_length)
+results_dir = "./results/model_bert_avg_group_size_"+str(group_size)+"max_length_"+str(max_length)
+
+
+
+
 
 # Load and combine all CSV files from the directory
 print("Loading data...")
@@ -32,6 +38,11 @@ dataframes = [pd.read_csv(file) for file in data_files]
 df = pd.concat(dataframes, ignore_index=True)
 print(f"Loaded {len(df)} rows from {len(data_files)} files.")
 
+
+
+
+## Preprocess tweets
+
 # Preprocess tweets
 def preprocess_text(text):
     """Clean and preprocess text data."""
@@ -41,43 +52,56 @@ def preprocess_text(text):
     text = re.sub(r"@\w+", "", text)  # Remove mentions
     # Supprimer les espaces multiples
     text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"rt", "", text)
      # Supprimer les espaces en début et fin
     text = text.strip()
 
     text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
-    text = text.split()
-    stop_words = set(stopwords.words('english'))
+    # text = text.split()
+    # stop_words = set(stopwords.words('english'))
 
-    text = [lemmatizer.lemmatize(word)for word in text if (word not in stop_words) or (word != "rt")]
-    return " ".join(text)
+    # text = " ".join([lemmatizer.lemmatize(word)for word in text if (word not in stop_words) or (word != "rt")])
+    return text
 
 print("Preprocessing tweets...")
 tqdm.pandas()
 df["CleanTweet"] = df["Tweet"].progress_apply(preprocess_text)
 
+grouped = df.groupby(['ID', 'EventType'])['CleanTweet'].progress_apply(lambda x: list(x)).reset_index()
+
+# Function to split tweets into quotas
+def split_into_quotas(tweets_list, quota_size):
+    return [" ".join(tweets_list[i:i + quota_size]) for i in range(0, len(tweets_list), quota_size)]
+
+# Apply the function to create quotas
+grouped['TweetQuotas'] = grouped['CleanTweet'].apply(lambda tweets: split_into_quotas(tweets, group_size))
+
+# Explode the quotas to have one quota per row
+tweets = grouped.explode('TweetQuotas').reset_index(drop=True)
+
+# print(grouped.head())
+
+# print(grouped['TweetQuotas'][0])
 print("Preprocessing complete.")
 
-# Aggregate tweets by ID and EventType
-tweets = df.groupby(["ID", "EventType"], as_index=False).agg({"CleanTweet": lambda x: " ".join(x)})
-# n_tweets = 10
-# tweets = df.groupby("ID", group_keys=False).apply(lambda x: x.sample(n=min(len(x), n_tweets)))
-# Separate into train and test sets
+#Separate into train and test sets
 train_texts, eval_texts, train_labels, eval_labels = train_test_split(
-    tweets["CleanTweet"].tolist(),
+    tweets["TweetQuotas"].tolist(),
     tweets["EventType"].tolist(),
-    test_size=0.2,
+     test_size=0.2,
     random_state=42
-)
+ )
+
 
 # Charger le modèle
 print("Chargement du modèle...")
-# model = AutoModelForSequenceClassification.from_pretrained(
-#     "cardiffnlp/twitter-roberta-base", 
-#     num_labels=len(set(train_labels))  # Définir le nombre de classes
-# )
-# tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base")
-model = LongformerForSequenceClassification.from_pretrained("allenai/longformer-base-4096")
-tokenizer = LongformerTokenizer.from_pretrained("allenai/longformer-base-4096")
+model = AutoModelForSequenceClassification.from_pretrained(
+    "cardiffnlp/twitter-roberta-base", 
+    num_labels=len(set(train_labels))  # Définir le nombre de classes
+)
+tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base")
+# model = LongformerForSequenceClassification.from_pretrained("allenai/longformer-base-4096")
+# tokenizer = LongformerTokenizer.from_pretrained("allenai/longformer-base-4096")
 
 print("Modèle chargé.")
 
@@ -161,3 +185,5 @@ print("Entraînement terminé.")
 model.save_pretrained(model_path)
 tokenizer.save_pretrained(model_path)
 print("Modèle sauvegardé.")
+
+
