@@ -18,3 +18,4 @@ fine_tuned_model_sum
 checkpoints
 __pycache__/
 *.pyc
+.DS_Store
