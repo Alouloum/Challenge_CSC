@@ -15,3 +15,4 @@ fine_tuned_model
 fine_tuned_model_long
 fine_tuned_model_sum
 *.csv
+checkpoints

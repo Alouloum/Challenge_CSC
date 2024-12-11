@@ -23,7 +23,7 @@ nltk.download('wordnet')
 print("Wordnet downloaded.")
 
 
-from lstm import TweetClassifier
+from train_lstm import TweetClassifier
 
 MAX_TWEETS_PER_GROUP = 2000
 model_path = "results/modeln_bilstm32with_lemmatize/checkpoint-1926/model.safetensors"

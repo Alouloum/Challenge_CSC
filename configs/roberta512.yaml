@@ -1,0 +1,22 @@
+model :
+    model_name : "cardiffnlp/twitter-roberta-base"
+    max_length : 512
+    group_size : 50
+    embedding_dim : 768
+
+training_args :
+    output_dir: "./checkpoints/bert/roberta512_group50"
+    logging_dir: "./logs/bert/roberta512_group50"
+    eval_strategy: "epoch"
+    learning_rate: 0.000001
+    per_device_train_batch_size: 4
+    per_device_eval_batch_size: 1
+    gradient_accumulation_steps: 4
+
+    num_train_epochs: 10
+    save_strategy: "epoch"
+    metric_for_best_model: "eval_loss"
+    weight_decay: 0.01
+    logging_steps: 100
+    save_total_limit: 2
+  

@@ -2,25 +2,27 @@ import os
 import pandas as pd
 import re
 from pathlib import Path
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+from torch.nn.functional import softmax
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from tqdm import tqdm
 from nltk.corpus import stopwords
-from torch.nn.functional import softmax
 
-max_length = 4096
+
+max_length = 512
+group_size = 50
+skip_line = False
 device = torch.device("cuda")
 
+
 load = False
-model_path = "/users/eleves-b/2022/mohamed.aloulou/Desktop/Challenge_CSC/results/model_stropwords/checkpoint-1060"
-output_csv_path = "bert" + str(max_length)+"p_avg_predictions.csv"
+model_path = "/users/eleves-b/2022/mohamed.aloulou/Desktop/Challenge_CSC/results/model_bert_avg_groupn_size_50max_length_512/checkpoint-16000"
+output_csv_path = "train_bert" + str(max_length)+"p_avg_predictions.csv"
 
 # Load and combine all CSV files from the directory
 
 print("Loading data...")
-data_dir = Path("./challenge_data/eval_tweets")
+data_dir = Path("./challenge_data/train_tweets")
 data_files = list(data_dir.glob("*.csv"))
 
 if not data_files:
@@ -43,22 +45,24 @@ def preprocess_text(text):
 
     text = re.sub(r"[^a-zA-Z\s]", "", text)  # Remove non-alphabetic characters
     # text = text.split()
-    stop_words = set(stopwords.words('english'))
+    # stop_words = set(stopwords.words('english'))
 
-    text = " ".join([word for word in text if (word not in stop_words)])
+    # text = " ".join([word for word in text if (word not in stop_words)])
     return text
 
 print("Preprocessing tweets...")
 tqdm.pandas()
 df["CleanTweet"] = df["Tweet"].progress_apply(preprocess_text)
 
-group_size = 400
 
 grouped = df.groupby(['ID'])['CleanTweet'].progress_apply(lambda x: list(x)).reset_index()
 
 # Function to split tweets into quotas
 def split_into_quotas(tweets_list, quota_size):
-    return [" ".join(tweets_list[i:i + quota_size]) for i in range(0, len(tweets_list), quota_size)]
+    if skip_line:
+        return ["\n".join(tweets_list[i:i + quota_size]) for i in range(0, len(tweets_list), quota_size)]
+    else : 
+        return [" ".join(tweets_list[i:i + quota_size]) for i in range(0, len(tweets_list), quota_size)]
 
 # Apply the function to create quotas
 grouped['TweetQuotas'] = grouped['CleanTweet'].apply(lambda tweets: split_into_quotas(tweets, group_size))
@@ -92,7 +96,7 @@ for tweet in tqdm(tweets, desc="Processing Tweets"):
     with torch.no_grad():
         outputs = model(**encodings)
         probabilities = softmax(outputs.logits, dim=1)  # Convertir les logits en probabilités
-    predictions.append(probabilities.cpu().numpy())  # Sauvegarder les probabilités
+    predictions.append(probabilities.cpu().numpy().squeeze())  # Sauvegarder les probabilités
 
 # Convertir les probabilités en DataFrame
 probabilities_df = pd.DataFrame(
@@ -101,6 +105,7 @@ probabilities_df = pd.DataFrame(
         "Probabilities": predictions,  # Liste des probabilités
     }
 )
+probabilities_df.to_csv("probabilitiés"+output_csv_path, index=False)
 
 # 4. Fusionner les probabilités par ID en calculant la moyenne
 # On suppose que chaque ID peut avoir plusieurs tweets (groupage par ID)

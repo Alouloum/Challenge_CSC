@@ -16,11 +16,10 @@ from nltk.corpus import stopwords
 
 
 max_length = 512
-
 group_size = 50
-model_path  = "./fine_tuned_model"
-log_dir = "./logs/model_bert_avg_group_size_"+str(group_size)+"max_length_"+str(max_length)
-results_dir = "./results/model_bert_avg_group_size_"+str(group_size)+"max_length_"+str(max_length)
+model_path  = "./model_bert_avg_groupn_size_"+str(group_size)+"max_length_"+str(max_length)
+log_dir = "./logs/model_bert_avg_groupn_size_"+str(group_size)+"max_length_"+str(max_length)
+results_dir = "./results/model_bert_avg_groupn_size_"+str(group_size)+"max_length_"+str(max_length)
 
 
 
@@ -48,8 +47,8 @@ def preprocess_text(text):
     """Clean and preprocess text data."""
     text = text.lower()
     text = re.sub(r"#\w+", "", text)  # Remove hashtags
-    text = re.sub(r"http\S+", "", text)  # Remove URLs
-    text = re.sub(r"@\w+", "", text)  # Remove mentions
+    text = re.sub(r"http\S+", "[URL]", text)  # Remove URLs
+    text = re.sub(r"@\w+", "[USER]", text)  # Remove mentions
     # Supprimer les espaces multiples
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"rt", "", text)
@@ -153,17 +152,18 @@ training_args = TrainingArguments(
     output_dir=results_dir,           # Répertoire pour sauvegarder le modèle
     eval_strategy="epoch",     # Évaluer après chaque époque
     learning_rate=2e-5,              # Taux d'apprentissage
-    per_device_train_batch_size=1,  # Taille des lots pour l'entraînement
+    per_device_train_batch_size=4,  # Taille des lots pour l'entraînement
     per_device_eval_batch_size=1,   # Taille des lots pour l'évaluation
-    gradient_accumulation_steps=16, # Accumuler les gradients
+    gradient_accumulation_steps=4, # Accumuler les gradients
 
 
-    num_train_epochs=10,              # Nombre d'époques
+    num_train_epochs=7,              # Nombre d'époques
     weight_decay=0.01,               # Régularisation L2
-    save_total_limit=2,              # Limiter les checkpoints sauvegardés
+                 # Limiter les checkpoints sauvegardés
     logging_dir=log_dir,            # Répertoire pour les journaux
-    logging_steps=10,                # Enregistrer toutes les 10 étapes
-    save_steps=1000,                      # Sauvegarder le modèle toutes les 50 étapes  
+    logging_steps=100,                # Enregistrer toutes les 10 étapes
+    save_steps=2500,            # Sauvegarder le modèle à chaque époque
+    save_total_limit=1,  # Utiliser la perte d'évaluation pour déterminer le meilleur modèle
 )
 
 
@@ -178,8 +178,10 @@ trainer = Trainer(
 )
 
 print("Entraînement du modèle...")
-trainer.train()
+checkpoint_path = "/users/eleves-b/2022/mohamed.aloulou/Desktop/Challenge_CSC/results/model_bert_avg_groupn_size_50max_length_512/checkpoint-16000"
+trainer.train(resume_from_checkpoint=True)
 print("Entraînement terminé.")
+
 
 # Sauvegarder le modèle
 model.save_pretrained(model_path)
