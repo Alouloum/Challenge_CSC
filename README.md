@@ -57,7 +57,7 @@ python -m scripts.eval_{model_name}
 ```
 The predictions will be saved as a csv in the `./results directory.`
 
-### Generating final predictions with the Meta-Model
+# Generating final predictions with the Meta-Model
 ## Step 1: Generate Bert probabilities
 Run the following script to generate BERT probabilities of both train
 ```bash

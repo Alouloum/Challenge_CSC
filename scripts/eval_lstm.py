@@ -12,8 +12,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 from src.models.lstm import evalEmbeddingDataset, collate_lstm_eval, TweetClassifier
-from utils.eval_utils import evaluate_model
-from utils.dataset_utils import import_data, preprocess_text_embed
+from src.utils.eval_utils import evaluate_model
+from src.utils.dataset_utils import import_data, preprocess_text_embed
 
 
 # Load the configuration file

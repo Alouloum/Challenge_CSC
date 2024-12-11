@@ -8,8 +8,8 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trai
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils.train_utils import compute_metrics_bert
-from utils.dataset_utils import import_data, preprocess_text_bert, split_into_quotas, TweetDataset
+from src.utils.train_utils import compute_metrics_bert
+from src.utils.dataset_utils import import_data, preprocess_text_bert, split_into_quotas, TweetDataset
 
 
 # Load the configuration file
