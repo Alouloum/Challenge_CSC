@@ -38,7 +38,7 @@ conda create -n my_env_name python=3.11
 conda activate my_env_name
 ```
 
-Then, install all required libraries listed in the requirements.txt file:
+Then, install all required libraries listed in the `requirements.txt` file:
 ```bash
 pip install -r requirements.txt
 ```
@@ -47,13 +47,13 @@ pip install -r requirements.txt
 ## Training models
 To train the LSTM or BERT model, use the following command, replacing `{model_name}` with either `lstm` or `bert`:
 ```bash
-python -m scripts.train_{model_name}
+python scripts/train_{model_name}.py
 ```
 
 ## Evaluate models
 To generate the predictions for the validation set, use the following command, replacing `{model_name}` with either `lstm` or `bert`:
 ```bash
-python -m scripts.eval_{model_name}
+python scripts/eval_{model_name}.py
 ```
 The predictions will be saved as a csv in the `./results directory.`
 
@@ -61,6 +61,6 @@ The predictions will be saved as a csv in the `./results directory.`
 ## Step 1: Generate Bert probabilities
 Run the following script to generate BERT probabilities of both train
 ```bash
-python scripts_generate_proba_bert.py
+python scripts/generate_proba_bert.py
 ```
 
